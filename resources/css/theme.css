@@ -1,0 +1,6 @@
+:root {
+    --primary-color: {{ theme('primary_color', '#c1121f') }};
+    --secondary-color: {{ theme('secondary_color', '#000000') }};
+    --text-color: {{ theme('text_color', '#ffffff') }};
+    --sidebar-bg: {{ theme('sidebar_bg', '#0b0b0b') }};
+}
