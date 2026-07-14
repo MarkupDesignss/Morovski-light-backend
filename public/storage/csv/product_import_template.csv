@@ -1,0 +1,4 @@
+name,category,type,model,price,sku,warehouses,description,specifications,images,is_featured
+Wireless Mouse,Electronics,online,Best Seller,25.99,MOUSE-001,"BR-01:20,LZ-GF:10",Ergonomic wireless mouse,Brand:Logitech;Color:Black;Dpi:1600,"item.png,item1.png",1
+USB Cable,Accessories,offline,New,8.5,CABLE-002,BR-01:50,2 meter USB cable,Length:2m;Type:C;Color:Black,item.png,0
+Gaming Keyboard,Electronics,online,Hot Deal,75,KEY-001,"BR-01:5,LZ-GF:15",Mechanical gaming keyboard,Brand:Corsair;Switch:Red;RGB:Yes,item1.png,1
