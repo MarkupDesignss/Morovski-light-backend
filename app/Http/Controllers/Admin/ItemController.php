@@ -20,76 +20,66 @@ use Illuminate\Support\Facades\Log;
 
 class ItemController extends Controller
 {
- public function shareProduct($slug)
-{
-    try {
-        $item = Item::with(['images', 'category'])
-            ->where('slug', $slug)
-            ->firstOrFail();
+    public function shareProduct($slug)
+    {
+        try {
+            $item = Item::with(['images', 'category'])
+                ->where('slug', $slug)
+                ->firstOrFail();
 
-        $firstImage = $item->images->first();
-        $imagePath = null;
-        $ogImage = null;
+            $firstImage = $item->images->first();
+            $imagePath = null;
+            $ogImage = null;
 
-        if ($firstImage) {
-            // Get the image path (handle both column names)
-            $imagePath = $firstImage->image_url ?? $firstImage->image;
-            
-            if (!empty($imagePath)) {
-                // Check if it's already a full URL
-                if (filter_var($imagePath, FILTER_VALIDATE_URL)) {
-                    $ogImage = $imagePath;
-                } else {
-                    // Remove any leading slashes
-                    $imagePath = ltrim($imagePath, '/');
-                    
-                    // Check if it's a storage path (starts with 'items/' or 'storage/')
-                    if (strpos($imagePath, 'items/') === 0) {
-                        // Use storage URL for files in storage/app/public
-                        $ogImage = asset('storage/' . $imagePath);
-                    } elseif (strpos($imagePath, 'storage/') === 0) {
-                        $ogImage = asset($imagePath);
+            if ($firstImage) {
+                $imagePath = $firstImage->image_url ?? $firstImage->image;
+
+                if (!empty($imagePath)) {
+                    if (filter_var($imagePath, FILTER_VALIDATE_URL)) {
+                        $ogImage = $imagePath;
                     } else {
-                        // Regular path
-                        $ogImage = asset($imagePath);
+                        $imagePath = ltrim($imagePath, '/');
+                        if (strpos($imagePath, 'items/') === 0) {
+                            $ogImage = asset('storage/' . $imagePath);
+                        } elseif (strpos($imagePath, 'storage/') === 0) {
+                            $ogImage = asset($imagePath);
+                        } else {
+                            $ogImage = asset($imagePath);
+                        }
                     }
                 }
             }
+
+            if (!$ogImage) {
+                $ogImage = asset('images/default-product.jpg');
+            }
+
+            $imageInfo = @getimagesize(str_replace('https://', 'http://', $ogImage));
+            $imageWidth = $imageInfo ? $imageInfo[0] : 1200;
+            $imageHeight = $imageInfo ? $imageInfo[1] : 630;
+            $imageType = $imageInfo ? $imageInfo['mime'] : 'image/jpeg';
+
+            $ogImage = str_replace('http://', 'https://', $ogImage);
+
+            return response()
+                ->view('admin.items.product_share', [
+                    'item' => $item,
+                    'ogImage' => $ogImage,
+                    'imageType' => $imageType,
+                    'imageWidth' => $imageWidth,
+                    'imageHeight' => $imageHeight,
+                ])
+                ->header('Cache-Control', 'public, max-age=3600');
+        } catch (\Exception $e) {
+            \Log::error('Share Product Error', [
+                'slug' => $slug,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            abort(404);
         }
-
-        // Fallback to a default image if no image found
-        if (!$ogImage) {
-            $ogImage = asset('images/default-product.jpg');
-        }
-
-        // Get image dimensions for OG tags (optional, can be hardcoded)
-        $imageInfo = @getimagesize(str_replace('https://', 'http://', $ogImage)); // Temporarily use HTTP to avoid SSL issues
-        $imageWidth = $imageInfo ? $imageInfo[0] : 1200;
-        $imageHeight = $imageInfo ? $imageInfo[1] : 630;
-        $imageType = $imageInfo ? $imageInfo['mime'] : 'image/jpeg';
-
-        // Enforce HTTPS
-        $ogImage = str_replace('http://', 'https://', $ogImage);
-
-        return response()
-            ->view('admin.items.product_share', [
-                'item' => $item,
-                'ogImage' => $ogImage,
-                'imageType' => $imageType,
-                'imageWidth' => $imageWidth,
-                'imageHeight' => $imageHeight,
-            ])
-            ->header('Cache-Control', 'public, max-age=3600');
-            
-    } catch (\Exception $e) {
-        \Log::error('Share Product Error', [
-            'slug' => $slug,
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        abort(404);
     }
-}
+
     public function index(Request $request)
     {
         $query = Item::with('images')->latest();
@@ -100,7 +90,6 @@ class ItemController extends Controller
                     ->orWhere('sku', 'like', '%' . $request->search . '%');
             });
         }
-        // Stock filter: in_stock (>20), low_stock (1-20), out_of_stock (<=0)
         if ($request->stock) {
             if ($request->stock === 'in_stock') {
                 $query->where('quantity', '>', 20);
@@ -110,7 +99,6 @@ class ItemController extends Controller
                 $query->where('quantity', '<=', 0);
             }
         }
-        // Type filter: online/offline
         if ($request->type) {
             if (in_array($request->type, ['online', 'offline'])) {
                 $query->where('type', $request->type);
@@ -123,11 +111,10 @@ class ItemController extends Controller
         return view('admin.items.index', compact('items', 'totalItems'));
     }
 
-    //  CREATE PAGE
     public function create()
     {
         $categories = Category::all();
-        $warehouses = Warehouse::where('is_active', true)->get(); // only active warehouses
+        $warehouses = Warehouse::where('is_active', true)->get();
         return view('admin.items.create', compact('categories', 'warehouses'));
     }
 
@@ -144,7 +131,6 @@ class ItemController extends Controller
             'warehouse_quantities.*' => 'integer|min:0',
         ]);
 
-        // Build specs
         $specs = [];
         if ($request->spec_key) {
             foreach ($request->spec_key as $i => $key) {
@@ -154,7 +140,6 @@ class ItemController extends Controller
             }
         }
 
-        // Calculate total quantity from warehouse inputs
         $totalQuantity = array_sum($request->warehouse_quantities);
 
         $slug = Str::slug($request->name);
@@ -176,7 +161,6 @@ class ItemController extends Controller
             'specifications' => $specs
         ]);
 
-        // Save warehouse-wise stocks
         foreach ($request->warehouse_quantities as $warehouseId => $qty) {
             WarehouseItem::create([
                 'warehouse_id' => $warehouseId,
@@ -186,18 +170,67 @@ class ItemController extends Controller
             ]);
         }
 
-        // Upload images
+        //  UPLOAD IMAGES – COMPRESSED FOR PDF
         if ($request->hasFile('images')) {
+            $manager = new ImageManager(new Driver());
+            $uploadDir = public_path('storage/items/');
+            if (!File::exists($uploadDir)) {
+                File::makeDirectory($uploadDir, 0755, true);
+            }
+
             foreach ($request->file('images') as $img) {
-                $path = $img->store('items', 'public');
-                ItemImage::create(['item_id' => $item->id, 'image' => $path]);
+                $extension = strtolower($img->getClientOriginalExtension());
+                $fileName = time() . '_' . uniqid() . '.' . $extension;
+                $fullPath = $uploadDir . $fileName;
+
+                try {
+                    if ($img->getSize() <= 100 * 1024) {
+                        // Small image – save as original
+                        $img->move($uploadDir, $fileName);
+                    } else {
+                        $image = $manager->read($img->getRealPath());
+                        // PDF के लिए 800px और 60% quality
+                        $image->scale(800, 800);
+
+                        switch ($extension) {
+                            case 'jpg':
+                            case 'jpeg':
+                                $encoded = $image->toJpeg(60);
+                                break;
+                            case 'png':
+                                $encoded = $image->toPng();
+                                break;
+                            case 'webp':
+                                $encoded = $image->toWebp(60);
+                                break;
+                            default:
+                                $encoded = $image->encode();
+                        }
+                        $encoded->save($fullPath);
+                    }
+
+                    ItemImage::create([
+                        'item_id' => $item->id,
+                        'image' => 'items/' . $fileName
+                    ]);
+                } catch (\Exception $e) {
+                    // Fallback – save original
+                    $img->move($uploadDir, $fileName);
+                    ItemImage::create([
+                        'item_id' => $item->id,
+                        'image' => 'items/' . $fileName
+                    ]);
+                    Log::error('Image optimization failed', [
+                        'file' => $fileName,
+                        'error' => $e->getMessage()
+                    ]);
+                }
             }
         }
 
         return redirect()->route('admin.items.index')->with('success', 'Item created with warehouse stocks');
     }
 
-    //  Show Items
     public function show($id)
     {
         $item = Item::with('images')->findOrFail($id);
@@ -209,7 +242,6 @@ class ItemController extends Controller
         $item = Item::with('images')->findOrFail($id);
         $categories = Category::all();
         $warehouses = Warehouse::where('is_active', true)->get();
-        // Get existing warehouse stocks keyed by warehouse_id
         $warehouseStocks = $item->warehouseItems->keyBy('warehouse_id');
 
         return view('admin.items.edit', compact('item', 'categories', 'warehouses', 'warehouseStocks'));
@@ -229,7 +261,6 @@ class ItemController extends Controller
             'warehouse_quantities.*' => 'integer|min:0',
         ]);
 
-        // rebuild JSON specs
         $specs = [];
         if ($request->spec_key) {
             foreach ($request->spec_key as $i => $key) {
@@ -239,11 +270,7 @@ class ItemController extends Controller
             }
         }
 
-        // Calculate total quantity from warehouse inputs
         $totalQuantity = array_sum($request->warehouse_quantities);
-
-        // if (Item::where('slug', $slug)->exists())
-        //     { return redirect()->back() ->withInput() ->withErrors([ 'name' => 'Item with same slug already exists. Kindly use another name.' ]); }
 
         $item->update([
             'name' => $request->name,
@@ -259,7 +286,6 @@ class ItemController extends Controller
             'specifications' => $specs,
         ]);
 
-        // Sync warehouse stocks (update or create)
         foreach ($request->warehouse_quantities as $warehouseId => $qty) {
             WarehouseItem::updateOrCreate(
                 ['warehouse_id' => $warehouseId, 'item_id' => $item->id],
@@ -267,18 +293,61 @@ class ItemController extends Controller
             );
         }
 
-        // Remove warehouses that are not in the request
         $submittedWarehouses = array_keys($request->warehouse_quantities);
         $item->warehouseItems()->whereNotIn('warehouse_id', $submittedWarehouses)->delete();
 
-        // Add new images (existing remain)
+        // UPLOAD NEW IMAGES – COMPRESSED FOR PDF
         if ($request->hasFile('images')) {
+            $manager = new ImageManager(new Driver());
+            $uploadDir = public_path('storage/items/');
+            if (!File::exists($uploadDir)) {
+                File::makeDirectory($uploadDir, 0755, true);
+            }
+
             foreach ($request->file('images') as $img) {
-                $path = $img->store('items', 'public');
-                ItemImage::create([
-                    'item_id' => $item->id,
-                    'image' => $path
-                ]);
+                $extension = strtolower($img->getClientOriginalExtension());
+                $fileName = time() . '_' . uniqid() . '.' . $extension;
+                $fullPath = $uploadDir . $fileName;
+
+                try {
+                    if ($img->getSize() <= 100 * 1024) {
+                        $img->move($uploadDir, $fileName);
+                    } else {
+                        $image = $manager->read($img->getRealPath());
+                        $image->scale(800, 800);
+
+                        switch ($extension) {
+                            case 'jpg':
+                            case 'jpeg':
+                                $encoded = $image->toJpeg(60);
+                                break;
+                            case 'png':
+                                $encoded = $image->toPng();
+                                break;
+                            case 'webp':
+                                $encoded = $image->toWebp(60);
+                                break;
+                            default:
+                                $encoded = $image->encode();
+                        }
+                        $encoded->save($fullPath);
+                    }
+
+                    ItemImage::create([
+                        'item_id' => $item->id,
+                        'image' => 'items/' . $fileName
+                    ]);
+                } catch (\Exception $e) {
+                    $img->move($uploadDir, $fileName);
+                    ItemImage::create([
+                        'item_id' => $item->id,
+                        'image' => 'items/' . $fileName
+                    ]);
+                    Log::error('Image optimization failed', [
+                        'file' => $fileName,
+                        'error' => $e->getMessage()
+                    ]);
+                }
             }
         }
 
@@ -286,724 +355,123 @@ class ItemController extends Controller
             ->with('success', 'Item updated successfully');
     }
 
-    //  DELETE ITEM (with images)
     public function destroy($id)
     {
         $item = Item::with('images')->findOrFail($id);
-
-        // delete images from storage
         foreach ($item->images as $img) {
             Storage::disk('public')->delete($img->image);
         }
-
         $item->delete();
-
         return back()->with('success', 'Item deleted');
     }
 
-    // DELETE SINGLE IMAGE (optional but useful)
     public function deleteImage($id)
     {
         $image = ItemImage::findOrFail($id);
-
         Storage::disk('public')->delete($image->image);
         $image->delete();
-
         return back()->with('success', 'Image deleted');
     }
 
     // ========== CSV IMPORT METHODS ==========
 
-    /**
-     * Show CSV import form
-     */
     public function showImportForm()
     {
         $warehouses = Warehouse::where('is_active', true)->get();
         return view('admin.items.import', compact('warehouses'));
     }
 
-     /**
-     * Chunked upload – temporary file banaye / append karein
-     */
-    // public function importChunk(Request $request)
-    // {
-    //     Log::info('Chunk received', [
-    //         'chunk_index' => $request->chunk_index,
-    //         'total_chunks' => $request->total_chunks,
-    //         'token' => $request->upload_token
-    //     ]);
-
-    //     $request->validate([
-    //         'chunk'          => 'required|string',
-    //         'chunk_index'    => 'required|integer',
-    //         'total_chunks'   => 'required|integer',
-    //         'upload_token'   => 'required|string',
-    //         'original_name'  => 'required|string',
-    //     ]);
-
-    //     $token = $request->upload_token;
-    //     $tempDir = storage_path('app/temp_imports');
-    //     if (!File::exists($tempDir)) {
-    //         File::makeDirectory($tempDir, 0755, true);
-    //     }
-
-    //     $tempFile = $tempDir . '/' . $token . '.csv';
-
-    //     // First chunk: overwrite (or create)
-    //     if ($request->chunk_index == 0) {
-    //         File::put($tempFile, $request->chunk);
-    //     } else {
-    //         File::append($tempFile, $request->chunk);
-    //     }
-
-    //     // Agar last chunk hai toh process karein
-    //     if ($request->chunk_index == $request->total_chunks - 1) {
-    //         $imported = 0;
-    //         $updated = 0;
-    //         $importErrors = [];
-
-    //         try {
-    //             $this->processCsvFile($tempFile, $imported, $updated, $importErrors);
-    //             File::delete($tempFile); // cleanup
-
-    //             Log::info('Chunked import completed', [
-    //                 'created' => $imported,
-    //                 'updated' => $updated
-    //             ]);
-
-    //             return response()->json([
-    //                 'success'  => true,
-    //                 'message'  => "Imported: {$imported}, Updated: {$updated}",
-    //                 'warnings' => $importErrors
-    //             ]);
-    //         } catch (\Exception $e) {
-    //             File::delete($tempFile);
-    //             Log::error('Chunk processing failed', ['error' => $e->getMessage()]);
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'error'   => 'Processing failed: ' . $e->getMessage()
-    //             ], 500);
-    //         }
-    //     }
-
-    //     return response()->json(['success' => true, 'message' => 'Chunk received']);
-    // }
-
-    /**
-     * Core CSV processing – extracted from importCsv
-     */
-    //  protected function processCsvFile($filePath, &$imported, &$updated, &$importErrors)
-    // {
-    //     $handle = fopen($filePath, 'r');
-    //     if (!$handle) {
-    //         throw new \Exception("Cannot open file: {$filePath}");
-    //     }
-
-    //     $headers = fgetcsv($handle);
-    //     // Remove BOM from first header if present
-    //     if (isset($headers[0])) {
-    //         $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
-    //     }
-    //     Log::info('Processing CSV headers', ['headers' => $headers]);
-
-    //     $validRows = [];
-    //     $errors = [];
-    //     $rowNumber = 1; // header is row 0, so we start counting from 1
-    //     $skuSeen = [];
-
-    //     while (($row = fgetcsv($handle)) !== false) {
-    //         $rowNumber++;
-
-    //         // Skip completely empty lines
-    //         if (empty($row) || (count($row) == 1 && trim($row[0]) === '')) {
-    //             continue;
-    //         }
-
-    //         // ----- CRITICAL: Column count check -----
-    //         if (count($headers) !== count($row)) {
-    //             Log::warning("Row {$rowNumber} column mismatch", [
-    //                 'expected' => count($headers),
-    //                 'actual'   => count($row),
-    //                 'preview'  => implode(',', array_slice($row, 0, 5))
-    //             ]);
-    //             $errors[] = "Row {$rowNumber}: Column count mismatch (expected " . count($headers) . ", got " . count($row) . ")";
-    //             continue; // skip this row
-    //         }
-
-    //         $data = array_combine($headers, $row);
-    //         $rowErrors = [];
-
-    //         // ---------- Required fields ----------
-    //         $required = ['name', 'category', 'type', 'price', 'warehouses'];
-    //         foreach ($required as $field) {
-    //             if (empty($data[$field])) {
-    //                 $rowErrors[] = "Missing required field: {$field}";
-    //             }
-    //         }
-
-    //         if (!empty($data['price']) && !is_numeric($data['price'])) {
-    //             $rowErrors[] = "Price must be numeric";
-    //         }
-
-    //         // ---------- Category validation ----------
-    //         $category = null;
-    //         if (!empty($data['category'])) {
-    //             $category = Category::where('name', $data['category'])->first();
-    //             if (!$category) {
-    //                 $rowErrors[] = "Category '{$data['category']}' not found in database";
-    //             }
-    //         } else {
-    //             $rowErrors[] = "Category is required";
-    //         }
-
-    //         // ---------- Warehouse validation ----------
-    //         if (!empty($data['warehouses'])) {
-    //             $parts = explode(',', $data['warehouses']);
-    //             foreach ($parts as $part) {
-    //                 $part = trim($part);
-    //                 if (strpos($part, ':') === false) {
-    //                     $rowErrors[] = "Invalid warehouse format: {$part}. Expected CODE:QUANTITY";
-    //                 } else {
-    //                     [$code, $qty] = explode(':', $part);
-    //                     if (!Warehouse::where('code', $code)->exists()) {
-    //                         $rowErrors[] = "Warehouse code '{$code}' not found";
-    //                     }
-    //                 }
-    //             }
-    //         } else {
-    //             $rowErrors[] = "Warehouses column required";
-    //         }
-
-    //         // ---------- Image validation ----------
-    //         if (!empty($data['images'])) {
-    //             $imageUrls = array_map('trim', explode(',', $data['images']));
-    //             foreach ($imageUrls as $url) {
-    //                 if (empty($url)) {
-    //                     $rowErrors[] = "Empty image value found";
-    //                 }
-    //             }
-    //         }
-
-    //         // ---------- SKU duplicate check ----------
-    //         if (!empty($data['sku'])) {
-    //             $sku = trim($data['sku']);
-    //             if (in_array($sku, $skuSeen)) {
-    //                 $rowErrors[] = "Duplicate SKU found in CSV: '{$sku}'.";
-    //             } else {
-    //                 $skuSeen[] = $sku;
-    //             }
-    //         }
-
-    //         if (empty($rowErrors)) {
-    //             $validRows[] = [
-    //                 'data'     => $data,
-    //                 'category' => $category,
-    //             ];
-    //         } else {
-    //             foreach ($rowErrors as $err) {
-    //                 $errors[] = "Row {$rowNumber}: {$err}";
-    //             }
-    //         }
-    //     }
-    //     fclose($handle);
-
-    //     // If there are any errors (including column mismatch), stop and throw
-    //     if (!empty($errors)) {
-    //         $errorMsg = "Validation errors:\n" . implode("\n", array_slice($errors, 0, 10)) . (count($errors) > 10 ? "\n... and " . (count($errors) - 10) . " more" : '');
-    //         throw new \Exception($errorMsg);
-    //     }
-
-    //     // ---------- DB Transaction ----------
-    //     DB::beginTransaction();
-    //     try {
-    //         foreach ($validRows as $validRow) {
-    //             $data = $validRow['data'];
-    //             $category = $validRow['category'];
-
-    //             // Parse warehouse quantities
-    //             $warehouseQtys = [];
-    //             $parts = explode(',', $data['warehouses']);
-    //             foreach ($parts as $part) {
-    //                 [$code, $qty] = explode(':', trim($part));
-    //                 $warehouse = Warehouse::where('code', $code)->first();
-    //                 if ($warehouse) {
-    //                     $warehouseQtys[$warehouse->id] = (int) $qty;
-    //                 }
-    //             }
-
-    //             // Parse specifications
-    //             $specs = [];
-    //             if (!empty($data['specifications'])) {
-    //                 $pairs = explode(';', $data['specifications']);
-    //                 foreach ($pairs as $pair) {
-    //                     if (strpos($pair, ':') !== false) {
-    //                         [$k, $v] = explode(':', $pair);
-    //                         $specs[trim($k)] = trim($v);
-    //                     }
-    //                 }
-    //             }
-
-    //             $totalQuantity = array_sum($warehouseQtys);
-
-    //             // Find existing item by SKU
-    //             $item = null;
-    //             if (!empty($data['sku'])) {
-    //                 $item = Item::where('sku', $data['sku'])->first();
-    //             }
-
-    //             // Generate unique slug
-    //             $baseSlug = Str::slug($data['name']);
-    //             $slug = $baseSlug;
-    //             $counter = 1;
-    //             if ($item) {
-    //                 while (Item::where('slug', $slug)->where('id', '!=', $item->id)->exists()) {
-    //                     $slug = $baseSlug . '-' . $counter++;
-    //                 }
-    //             } else {
-    //                 while (Item::where('slug', $slug)->exists()) {
-    //                     $slug = $baseSlug . '-' . $counter++;
-    //                 }
-    //             }
-
-    //             // Best Seller (is_featured)
-    //             $isFeatured = 0;
-    //             if (!empty($data['is_featured'])) {
-    //                 $val = strtolower(trim($data['is_featured']));
-    //                 if (in_array($val, ['yes', 'true', '1', 'best seller'])) {
-    //                     $isFeatured = 1;
-    //                 }
-    //             }
-
-    //             if ($item) {
-    //                 $item->update([
-    //                     'name'           => $data['name'],
-    //                     'category_id'    => $category->id,
-    //                     'slug'           => $slug,
-    //                     'price'          => (float) $data['price'],
-    //                     'type'           => $data['type'],
-    //                     'quantity'       => $totalQuantity,
-    //                     'is_featured'    => $isFeatured,
-    //                     'description'    => $data['description'] ?? null,
-    //                     'specifications' => $specs,
-    //                 ]);
-    //                 // Sync warehouses
-    //                 $item->warehouseItems()->delete();
-    //                 foreach ($warehouseQtys as $whId => $qty) {
-    //                     WarehouseItem::create([
-    //                         'warehouse_id'      => $whId,
-    //                         'item_id'           => $item->id,
-    //                         'quantity'          => $qty,
-    //                         'reserved_quantity' => 0,
-    //                         'damaged_quantity'  => 0,
-    //                     ]);
-    //                 }
-    //                 // Attach images
-    //                 if (!empty($data['images'])) {
-    //                     $imageUrls = array_map('trim', explode(',', $data['images']));
-    //                     foreach ($imageUrls as $url) {
-    //                         $this->attachImageFromUrl($item->id, $url, $importErrors, $rowNumber);
-    //                     }
-    //                 }
-    //                 $updated++;
-    //             } else {
-    //                 $item = Item::create([
-    //                     'name'           => $data['name'],
-    //                     'category_id'    => $category->id,
-    //                     'slug'           => $slug,
-    //                     'sku'            => $data['sku'] ?? null,
-    //                     'price'          => (float) $data['price'],
-    //                     'type'           => $data['type'],
-    //                     'quantity'       => $totalQuantity,
-    //                     'is_featured'    => $isFeatured,
-    //                     'description'    => $data['description'] ?? null,
-    //                     'specifications' => $specs,
-    //                 ]);
-    //                 foreach ($warehouseQtys as $whId => $qty) {
-    //                     WarehouseItem::create([
-    //                         'warehouse_id'      => $whId,
-    //                         'item_id'           => $item->id,
-    //                         'quantity'          => $qty,
-    //                         'reserved_quantity' => 0,
-    //                         'damaged_quantity'  => 0,
-    //                     ]);
-    //                 }
-    //                 if (!empty($data['images'])) {
-    //                     $imageUrls = array_map('trim', explode(',', $data['images']));
-    //                     foreach ($imageUrls as $url) {
-    //                         $this->attachImageFromUrl($item->id, $url, $importErrors, $rowNumber);
-    //                     }
-    //                 }
-    //                 $imported++;
-    //             }
-    //         }
-    //         DB::commit();
-    //     } catch (\Exception $e) {
-    //         DB::rollBack();
-    //         throw $e;
-    //     }
-    // }
-    
-/**
- * Chunked upload – receives a chunk, appends to temp file,
- * and processes the whole file when the last chunk arrives.
- */
-public function importChunk(Request $request)
-{
-    Log::info('Chunk received', [
-        'chunk_index' => $request->chunk_index,
-        'total_chunks' => $request->total_chunks,
-        'token' => $request->upload_token
-    ]);
-
-    try {
-        $request->validate([
-            'chunk'            => 'required|string',
-            'chunk_index'      => 'required|integer',
-            'total_chunks'     => 'required|integer',
-            'upload_token'     => 'required|string',
-            'original_name'    => 'required|string',
-            'chunk_size_lines' => 'required|integer|min:1',
+    public function importChunk(Request $request)
+    {
+        Log::info('Chunk received', [
+            'chunk_index' => $request->chunk_index,
+            'total_chunks' => $request->total_chunks,
+            'token' => $request->upload_token
         ]);
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        return response()->json([
-            'success' => false,
-            'error'   => 'Validation failed: ' . $e->getMessage()
-        ], 422);
-    }
-
-    $token = $request->upload_token;
-    $tempDir = storage_path('app/temp_imports');
-    if (!File::exists($tempDir)) {
-        File::makeDirectory($tempDir, 0755, true);
-    }
-
-    $tempFile = $tempDir . '/' . $token . '.csv';
-
-    // First chunk: overwrite (or create)
-    if ($request->chunk_index == 0) {
-        File::put($tempFile, $request->chunk);
-    } else {
-        File::append($tempFile, $request->chunk);
-    }
-
-    // If last chunk, process the whole file
-    if ($request->chunk_index == $request->total_chunks - 1) {
-        $imported = 0;
-        $updated = 0;
-        $importErrors = [];
-        $validationErrors = []; // will hold full error list
-
-        $offset = $request->chunk_index * $request->chunk_size_lines;
 
         try {
-            $this->processCsvFile($tempFile, $imported, $updated, $importErrors, $offset, $validationErrors);
-            File::delete($tempFile);
-
-            Log::info('Chunked import completed', [
-                'created' => $imported,
-                'updated' => $updated
+            $request->validate([
+                'chunk'            => 'required|string',
+                'chunk_index'      => 'required|integer',
+                'total_chunks'     => 'required|integer',
+                'upload_token'     => 'required|string',
+                'original_name'    => 'required|string',
+                'chunk_size_lines' => 'required|integer|min:1',
             ]);
-
-            return response()->json([
-                'success'  => true,
-                'message'  => "Imported: {$imported}, Updated: {$updated}",
-                'warnings' => $importErrors
-            ]);
-        } catch (\Exception $e) {
-            File::delete($tempFile);
-            Log::error('Chunk processing failed', ['error' => $e->getMessage()]);
-
-            // If we have validation errors array, send them in full
-            if (!empty($validationErrors)) {
-                return response()->json([
-                    'success' => false,
-                    'error'   => 'Validation errors occurred.',
-                    'validation_errors' => $validationErrors // full list
-                ], 422);
-            }
-
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'error'   => 'Processing failed: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    return response()->json(['success' => true, 'message' => 'Chunk received']);
-}
-
-/**
- * Core CSV processing – validates and imports rows.
- * Now accepts $offset and $validationErrors by reference.
- */
-protected function processCsvFile($filePath, &$imported, &$updated, &$importErrors, $offset = 0, &$validationErrors = [])
-{
-    $handle = fopen($filePath, 'r');
-    if (!$handle) {
-        throw new \Exception("Cannot open file: {$filePath}");
-    }
-
-    $headers = fgetcsv($handle);
-    if (isset($headers[0])) {
-        $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
-    }
-    Log::info('Processing CSV headers', ['headers' => $headers]);
-
-    $validRows = [];
-    $errors = [];
-    $rowNumber = 1;
-    $skuSeen = [];
-
-    while (($row = fgetcsv($handle)) !== false) {
-        $rowNumber++;
-        $globalRow = $rowNumber + $offset;
-
-        if (empty($row) || (count($row) == 1 && trim($row[0]) === '')) {
-            continue;
+                'error'   => 'Validation failed: ' . $e->getMessage()
+            ], 422);
         }
 
-        if (count($headers) !== count($row)) {
-            $errors[] = "Row {$globalRow}: Column count mismatch (expected " . count($headers) . ", got " . count($row) . ")";
-            continue;
+        $token = $request->upload_token;
+        $tempDir = storage_path('app/temp_imports');
+        if (!File::exists($tempDir)) {
+            File::makeDirectory($tempDir, 0755, true);
         }
 
-        $data = array_combine($headers, $row);
-        $rowErrors = [];
+        $tempFile = $tempDir . '/' . $token . '.csv';
 
-        // Required fields
-        $required = ['name', 'category', 'type', 'price', 'warehouses'];
-        foreach ($required as $field) {
-            if (empty($data[$field])) {
-                $rowErrors[] = "Missing required field: {$field}";
-            }
-        }
-
-        if (!empty($data['price']) && !is_numeric($data['price'])) {
-            $rowErrors[] = "Price must be numeric";
-        }
-
-        // Category
-        $category = null;
-        if (!empty($data['category'])) {
-            $category = Category::where('name', $data['category'])->first();
-            if (!$category) {
-                $rowErrors[] = "Category '{$data['category']}' not found in database";
-            }
+        if ($request->chunk_index == 0) {
+            File::put($tempFile, $request->chunk);
         } else {
-            $rowErrors[] = "Category is required";
+            File::append($tempFile, $request->chunk);
         }
 
-        // Warehouses
-        if (!empty($data['warehouses'])) {
-            $parts = explode(',', $data['warehouses']);
-            foreach ($parts as $part) {
-                $part = trim($part);
-                if (strpos($part, ':') === false) {
-                    $rowErrors[] = "Invalid warehouse format: {$part}. Expected CODE:QUANTITY";
-                } else {
-                    [$code, $qty] = explode(':', $part);
-                    if (!Warehouse::where('code', $code)->exists()) {
-                        $rowErrors[] = "Warehouse code '{$code}' not found";
-                    }
-                }
-            }
-        } else {
-            $rowErrors[] = "Warehouses column required";
-        }
+        if ($request->chunk_index == $request->total_chunks - 1) {
+            $imported = 0;
+            $updated = 0;
+            $importErrors = [];
+            $validationErrors = [];
+            $offset = $request->chunk_index * $request->chunk_size_lines;
 
-        // Images (only format check)
-        if (!empty($data['images'])) {
-            $imageUrls = array_map('trim', explode(',', $data['images']));
-            foreach ($imageUrls as $url) {
-                if (empty($url)) {
-                    $rowErrors[] = "Empty image value found";
-                }
-            }
-        }
+            try {
+                $this->processCsvFile($tempFile, $imported, $updated, $importErrors, $offset, $validationErrors);
+                File::delete($tempFile);
 
-        // SKU duplicate
-        if (!empty($data['sku'])) {
-            $sku = trim($data['sku']);
-            if (in_array($sku, $skuSeen)) {
-                $rowErrors[] = "Duplicate SKU found in CSV: '{$sku}'.";
-            } else {
-                $skuSeen[] = $sku;
-            }
-        }
-
-        if (empty($rowErrors)) {
-            $validRows[] = [
-                'data'      => $data,
-                'category'  => $category,
-                'globalRow' => $globalRow,
-            ];
-        } else {
-            foreach ($rowErrors as $err) {
-                $errors[] = "Row {$globalRow}: {$err}";
-            }
-        }
-    }
-    fclose($handle);
-
-    // If there are validation errors, store them and throw exception
-    if (!empty($errors)) {
-        $validationErrors = $errors; // assign full list
-        $errorMsg = "Validation errors:\n" . implode("\n", $errors);
-        throw new \Exception($errorMsg);
-    }
-
-    // ---------- DB Transaction ----------
-    DB::beginTransaction();
-    try {
-        foreach ($validRows as $validRow) {
-            $data = $validRow['data'];
-            $category = $validRow['category'];
-            $globalRow = $validRow['globalRow'];
-
-            // Parse warehouse quantities
-            $warehouseQtys = [];
-            $parts = explode(',', $data['warehouses']);
-            foreach ($parts as $part) {
-                [$code, $qty] = explode(':', trim($part));
-                $warehouse = Warehouse::where('code', $code)->first();
-                if ($warehouse) {
-                    $warehouseQtys[$warehouse->id] = (int) $qty;
-                }
-            }
-
-            // Parse specifications
-            $specs = [];
-            if (!empty($data['specifications'])) {
-                $pairs = explode(';', $data['specifications']);
-                foreach ($pairs as $pair) {
-                    if (strpos($pair, ':') !== false) {
-                        [$k, $v] = explode(':', $pair);
-                        $specs[trim($k)] = trim($v);
-                    }
-                }
-            }
-
-            $totalQuantity = array_sum($warehouseQtys);
-
-            // Find existing item by SKU
-            $item = null;
-            if (!empty($data['sku'])) {
-                $item = Item::where('sku', $data['sku'])->first();
-            }
-
-            // Generate unique slug
-            $baseSlug = Str::slug($data['name']);
-            $slug = $baseSlug;
-            $counter = 1;
-            if ($item) {
-                while (Item::where('slug', $slug)->where('id', '!=', $item->id)->exists()) {
-                    $slug = $baseSlug . '-' . $counter++;
-                }
-            } else {
-                while (Item::where('slug', $slug)->exists()) {
-                    $slug = $baseSlug . '-' . $counter++;
-                }
-            }
-
-            $isFeatured = 0;
-            if (!empty($data['is_featured'])) {
-                $val = strtolower(trim($data['is_featured']));
-                if (in_array($val, ['yes', 'true', '1', 'best seller'])) {
-                    $isFeatured = 1;
-                }
-            }
-
-            if ($item) {
-                $item->update([
-                    'name'           => $data['name'],
-                    'category_id'    => $category->id,
-                    'slug'           => $slug,
-                    'price'          => (float) $data['price'],
-                    'type'           => $data['type'],
-                    'quantity'       => $totalQuantity,
-                    'is_featured'    => $isFeatured,
-                    'description'    => $data['description'] ?? null,
-                    'specifications' => $specs,
+                Log::info('Chunked import completed', [
+                    'created' => $imported,
+                    'updated' => $updated
                 ]);
-                $item->warehouseItems()->delete();
-                foreach ($warehouseQtys as $whId => $qty) {
-                    WarehouseItem::create([
-                        'warehouse_id'      => $whId,
-                        'item_id'           => $item->id,
-                        'quantity'          => $qty,
-                        'reserved_quantity' => 0,
-                        'damaged_quantity'  => 0,
-                    ]);
-                }
-                if (!empty($data['images'])) {
-                    $imageUrls = array_map('trim', explode(',', $data['images']));
-                    foreach ($imageUrls as $url) {
-                        $this->attachImageFromUrl($item->id, $url, $importErrors, $globalRow);
-                    }
-                }
-                $updated++;
-            } else {
-                $item = Item::create([
-                    'name'           => $data['name'],
-                    'category_id'    => $category->id,
-                    'slug'           => $slug,
-                    'sku'            => $data['sku'] ?? null,
-                    'price'          => (float) $data['price'],
-                    'type'           => $data['type'],
-                    'quantity'       => $totalQuantity,
-                    'is_featured'    => $isFeatured,
-                    'description'    => $data['description'] ?? null,
-                    'specifications' => $specs,
+
+                return response()->json([
+                    'success'  => true,
+                    'message'  => "Imported: {$imported}, Updated: {$updated}",
+                    'warnings' => $importErrors
                 ]);
-                foreach ($warehouseQtys as $whId => $qty) {
-                    WarehouseItem::create([
-                        'warehouse_id'      => $whId,
-                        'item_id'           => $item->id,
-                        'quantity'          => $qty,
-                        'reserved_quantity' => 0,
-                        'damaged_quantity'  => 0,
-                    ]);
+            } catch (\Exception $e) {
+                File::delete($tempFile);
+                Log::error('Chunk processing failed', ['error' => $e->getMessage()]);
+                if (!empty($validationErrors)) {
+                    return response()->json([
+                        'success' => false,
+                        'error'   => 'Validation errors occurred.',
+                        'validation_errors' => $validationErrors
+                    ], 422);
                 }
-                if (!empty($data['images'])) {
-                    $imageUrls = array_map('trim', explode(',', $data['images']));
-                    foreach ($imageUrls as $url) {
-                        $this->attachImageFromUrl($item->id, $url, $importErrors, $globalRow);
-                    }
-                }
-                $imported++;
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Processing failed: ' . $e->getMessage()
+                ], 500);
             }
         }
-        DB::commit();
-    } catch (\Exception $e) {
-        DB::rollBack();
-        throw $e;
-    }
-}
-    
-// --------------------------------------------------------------------
 
-    public function importCsv(Request $request)
+        return response()->json(['success' => true, 'message' => 'Chunk received']);
+    }
+
+    protected function processCsvFile($filePath, &$imported, &$updated, &$importErrors, $offset = 0, &$validationErrors = [])
     {
-        // ---------- START LOG ----------
-        Log::info('=== CSV IMPORT STARTED ===', [
-            'file_name' => $request->file('csv_file')?->getClientOriginalName(),
-            'file_size' => $request->file('csv_file')?->getSize(),
-            'timestamp' => now()->toDateTimeString(),
-            'user_id'   => auth()->id()
-        ]);
+        $handle = fopen($filePath, 'r');
+        if (!$handle) {
+            throw new \Exception("Cannot open file: {$filePath}");
+        }
 
-        // Validation (size limit already 5MB)
-        $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:5120'
-        ]);
-
-        $file = $request->file('csv_file');
-        $handle = fopen($file->getPathname(), 'r');
         $headers = fgetcsv($handle);
-
-        // Log headers
-        Log::info('CSV Headers', ['headers' => $headers]);
+        if (isset($headers[0])) {
+            $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
+        }
+        Log::info('Processing CSV headers', ['headers' => $headers]);
 
         $validRows = [];
         $errors = [];
@@ -1012,10 +480,20 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
 
         while (($row = fgetcsv($handle)) !== false) {
             $rowNumber++;
+            $globalRow = $rowNumber + $offset;
+
+            if (empty($row) || (count($row) == 1 && trim($row[0]) === '')) {
+                continue;
+            }
+
+            if (count($headers) !== count($row)) {
+                $errors[] = "Row {$globalRow}: Column count mismatch (expected " . count($headers) . ", got " . count($row) . ")";
+                continue;
+            }
+
             $data = array_combine($headers, $row);
             $rowErrors = [];
 
-            // ---------- Required fields ----------
             $required = ['name', 'category', 'type', 'price', 'warehouses'];
             foreach ($required as $field) {
                 if (empty($data[$field])) {
@@ -1027,7 +505,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                 $rowErrors[] = "Price must be numeric";
             }
 
-            // ---------- Category validation ----------
             $category = null;
             if (!empty($data['category'])) {
                 $category = Category::where('name', $data['category'])->first();
@@ -1038,7 +515,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                 $rowErrors[] = "Category is required";
             }
 
-            // ---------- Warehouse validation ----------
             if (!empty($data['warehouses'])) {
                 $parts = explode(',', $data['warehouses']);
                 foreach ($parts as $part) {
@@ -1056,7 +532,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                 $rowErrors[] = "Warehouses column required";
             }
 
-            // ---------- Image validation ----------
             if (!empty($data['images'])) {
                 $imageUrls = array_map('trim', explode(',', $data['images']));
                 foreach ($imageUrls as $url) {
@@ -1066,7 +541,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                 }
             }
 
-            // ---------- SKU duplicate check ----------
             if (!empty($data['sku'])) {
                 $sku = trim($data['sku']);
                 if (in_array($sku, $skuSeen)) {
@@ -1076,7 +550,234 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                 }
             }
 
-            // ---------- Log row errors if any ----------
+            if (empty($rowErrors)) {
+                $validRows[] = [
+                    'data'      => $data,
+                    'category'  => $category,
+                    'globalRow' => $globalRow,
+                ];
+            } else {
+                foreach ($rowErrors as $err) {
+                    $errors[] = "Row {$globalRow}: {$err}";
+                }
+            }
+        }
+        fclose($handle);
+
+        if (!empty($errors)) {
+            $validationErrors = $errors;
+            $errorMsg = "Validation errors:\n" . implode("\n", $errors);
+            throw new \Exception($errorMsg);
+        }
+
+        DB::beginTransaction();
+        try {
+            foreach ($validRows as $validRow) {
+                $data = $validRow['data'];
+                $category = $validRow['category'];
+                $globalRow = $validRow['globalRow'];
+
+                $warehouseQtys = [];
+                $parts = explode(',', $data['warehouses']);
+                foreach ($parts as $part) {
+                    [$code, $qty] = explode(':', trim($part));
+                    $warehouse = Warehouse::where('code', $code)->first();
+                    if ($warehouse) {
+                        $warehouseQtys[$warehouse->id] = (int) $qty;
+                    }
+                }
+
+                $specs = [];
+                if (!empty($data['specifications'])) {
+                    $pairs = explode(';', $data['specifications']);
+                    foreach ($pairs as $pair) {
+                        if (strpos($pair, ':') !== false) {
+                            [$k, $v] = explode(':', $pair);
+                            $specs[trim($k)] = trim($v);
+                        }
+                    }
+                }
+
+                $totalQuantity = array_sum($warehouseQtys);
+
+                $item = null;
+                if (!empty($data['sku'])) {
+                    $item = Item::where('sku', $data['sku'])->first();
+                }
+
+                $baseSlug = Str::slug($data['name']);
+                $slug = $baseSlug;
+                $counter = 1;
+                if ($item) {
+                    while (Item::where('slug', $slug)->where('id', '!=', $item->id)->exists()) {
+                        $slug = $baseSlug . '-' . $counter++;
+                    }
+                } else {
+                    while (Item::where('slug', $slug)->exists()) {
+                        $slug = $baseSlug . '-' . $counter++;
+                    }
+                }
+
+                $isFeatured = 0;
+                if (!empty($data['is_featured'])) {
+                    $val = strtolower(trim($data['is_featured']));
+                    if (in_array($val, ['yes', 'true', '1', 'best seller'])) {
+                        $isFeatured = 1;
+                    }
+                }
+
+                if ($item) {
+                    $item->update([
+                        'name'           => $data['name'],
+                        'category_id'    => $category->id,
+                        'slug'           => $slug,
+                        'price'          => (float) $data['price'],
+                        'type'           => $data['type'],
+                        'quantity'       => $totalQuantity,
+                        'is_featured'    => $isFeatured,
+                        'description'    => $data['description'] ?? null,
+                        'specifications' => $specs,
+                    ]);
+                    $item->warehouseItems()->delete();
+                    foreach ($warehouseQtys as $whId => $qty) {
+                        WarehouseItem::create([
+                            'warehouse_id'      => $whId,
+                            'item_id'           => $item->id,
+                            'quantity'          => $qty,
+                            'reserved_quantity' => 0,
+                            'damaged_quantity'  => 0,
+                        ]);
+                    }
+                    if (!empty($data['images'])) {
+                        $imageUrls = array_map('trim', explode(',', $data['images']));
+                        foreach ($imageUrls as $url) {
+                            $this->attachImageFromUrl($item->id, $url, $importErrors, $globalRow);
+                        }
+                    }
+                    $updated++;
+                } else {
+                    $item = Item::create([
+                        'name'           => $data['name'],
+                        'category_id'    => $category->id,
+                        'slug'           => $slug,
+                        'sku'            => $data['sku'] ?? null,
+                        'price'          => (float) $data['price'],
+                        'type'           => $data['type'],
+                        'quantity'       => $totalQuantity,
+                        'is_featured'    => $isFeatured,
+                        'description'    => $data['description'] ?? null,
+                        'specifications' => $specs,
+                    ]);
+                    foreach ($warehouseQtys as $whId => $qty) {
+                        WarehouseItem::create([
+                            'warehouse_id'      => $whId,
+                            'item_id'           => $item->id,
+                            'quantity'          => $qty,
+                            'reserved_quantity' => 0,
+                            'damaged_quantity'  => 0,
+                        ]);
+                    }
+                    if (!empty($data['images'])) {
+                        $imageUrls = array_map('trim', explode(',', $data['images']));
+                        foreach ($imageUrls as $url) {
+                            $this->attachImageFromUrl($item->id, $url, $importErrors, $globalRow);
+                        }
+                    }
+                    $imported++;
+                }
+            }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    public function importCsv(Request $request)
+    {
+        Log::info('=== CSV IMPORT STARTED ===', [
+            'file_name' => $request->file('csv_file')?->getClientOriginalName(),
+            'file_size' => $request->file('csv_file')?->getSize(),
+            'timestamp' => now()->toDateTimeString(),
+            'user_id'   => auth()->id()
+        ]);
+
+        $request->validate([
+            'csv_file' => 'required|file|mimes:csv,txt|max:5120'
+        ]);
+
+        $file = $request->file('csv_file');
+        $handle = fopen($file->getPathname(), 'r');
+        $headers = fgetcsv($handle);
+
+        Log::info('CSV Headers', ['headers' => $headers]);
+
+        $validRows = [];
+        $errors = [];
+        $rowNumber = 1;
+        $skuSeen = [];
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $rowNumber++;
+            $data = array_combine($headers, $row);
+            $rowErrors = [];
+
+            $required = ['name', 'category', 'type', 'price', 'warehouses'];
+            foreach ($required as $field) {
+                if (empty($data[$field])) {
+                    $rowErrors[] = "Missing required field: {$field}";
+                }
+            }
+
+            if (!empty($data['price']) && !is_numeric($data['price'])) {
+                $rowErrors[] = "Price must be numeric";
+            }
+
+            $category = null;
+            if (!empty($data['category'])) {
+                $category = Category::where('name', $data['category'])->first();
+                if (!$category) {
+                    $rowErrors[] = "Category '{$data['category']}' not found in database";
+                }
+            } else {
+                $rowErrors[] = "Category is required";
+            }
+
+            if (!empty($data['warehouses'])) {
+                $parts = explode(',', $data['warehouses']);
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    if (strpos($part, ':') === false) {
+                        $rowErrors[] = "Invalid warehouse format: {$part}. Expected CODE:QUANTITY";
+                    } else {
+                        [$code, $qty] = explode(':', $part);
+                        if (!Warehouse::where('code', $code)->exists()) {
+                            $rowErrors[] = "Warehouse code '{$code}' not found";
+                        }
+                    }
+                }
+            } else {
+                $rowErrors[] = "Warehouses column required";
+            }
+
+            if (!empty($data['images'])) {
+                $imageUrls = array_map('trim', explode(',', $data['images']));
+                foreach ($imageUrls as $url) {
+                    if (empty($url)) {
+                        $rowErrors[] = "Empty image value found";
+                    }
+                }
+            }
+
+            if (!empty($data['sku'])) {
+                $sku = trim($data['sku']);
+                if (in_array($sku, $skuSeen)) {
+                    $rowErrors[] = "Duplicate SKU found in CSV: '{$sku}'.";
+                } else {
+                    $skuSeen[] = $sku;
+                }
+            }
+
             if (empty($rowErrors)) {
                 $validRows[] = [
                     'data'     => $data,
@@ -1095,11 +796,10 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
 
         fclose($handle);
 
-        // Log validation summary
         Log::info('Validation summary', [
             'valid_rows'   => count($validRows),
             'error_rows'   => count($errors),
-            'total_rows'   => $rowNumber - 1 // exclude header
+            'total_rows'   => $rowNumber - 1
         ]);
 
         if (!empty($errors)) {
@@ -1121,7 +821,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                 $data = $validRow['data'];
                 $category = $validRow['category'];
 
-                // ---------- Parse warehouse quantities ----------
                 $warehouseQtys = [];
                 $parts = explode(',', $data['warehouses']);
                 foreach ($parts as $part) {
@@ -1132,7 +831,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                     }
                 }
 
-                // ---------- Parse specifications ----------
                 $specs = [];
                 if (!empty($data['specifications'])) {
                     $pairs = explode(';', $data['specifications']);
@@ -1146,13 +844,11 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
 
                 $totalQuantity = array_sum($warehouseQtys);
 
-                // ---------- Find existing item by SKU ----------
                 $item = null;
                 if (!empty($data['sku'])) {
                     $item = Item::where('sku', $data['sku'])->first();
                 }
 
-                // ---------- Generate unique slug ----------
                 $baseSlug = Str::slug($data['name']);
                 $slug = $baseSlug;
                 $counter = 1;
@@ -1169,7 +865,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                     }
                 }
 
-                // ---------- Process Best Seller (is_featured) ----------
                 $isFeatured = 0;
                 if (!empty($data['is_featured'])) {
                     $val = strtolower(trim($data['is_featured']));
@@ -1178,7 +873,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                     }
                 }
 
-                // ---------- Perform update or create ----------
                 if ($item) {
                     Log::info('Updating existing item', [
                         'id'  => $item->id,
@@ -1192,12 +886,11 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                         'price'           => (float) $data['price'],
                         'type'            => $data['type'],
                         'quantity'        => $totalQuantity,
-                        'is_featured'     => $isFeatured,  // <-- Best Seller
+                        'is_featured'     => $isFeatured,
                         'description'     => $data['description'] ?? null,
                         'specifications'  => $specs,
                     ]);
 
-                    // Sync warehouses
                     $item->warehouseItems()->delete();
                     foreach ($warehouseQtys as $whId => $qty) {
                         WarehouseItem::create([
@@ -1209,7 +902,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                         ]);
                     }
 
-                    // Attach images
                     if (!empty($data['images'])) {
                         $imageUrls = array_map('trim', explode(',', $data['images']));
                         foreach ($imageUrls as $url) {
@@ -1232,7 +924,7 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                         'price'           => (float) $data['price'],
                         'type'            => $data['type'],
                         'quantity'        => $totalQuantity,
-                        'is_featured'     => $isFeatured, // <-- Best Seller
+                        'is_featured'     => $isFeatured,
                         'description'     => $data['description'] ?? null,
                         'specifications'  => $specs,
                     ]);
@@ -1273,7 +965,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
             }
 
             return redirect()->route('admin.items.index')->with('success', $message);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('CSV import failed with exception', [
@@ -1287,55 +978,46 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
         }
     }
 
-
     /**
-     * Attach image to item – supports both local filename (legacy) and URL.
-     * If URL, downloads and stores locally.
+     * UPDATED – Now compresses URL images to 800px JPG with 65% quality
      */
     private function attachImageFromUrl($itemId, $imageInput, &$errors, $rowNumber)
     {
-        // If it's a local filename, delegate
         if (!filter_var($imageInput, FILTER_VALIDATE_URL)) {
             $this->attachImageToItem($itemId, $imageInput, $errors, $rowNumber);
             return;
         }
 
-        // Google Drive conversion
         $downloadUrl = $this->getGoogleDriveDirectUrl($imageInput);
 
         try {
-            // Download image
             $contents = file_get_contents($downloadUrl);
             if ($contents === false) {
                 $errors[] = "Row {$rowNumber}: Failed to download image from URL: {$imageInput}";
                 return;
             }
 
-            // Determine extension
-            $extension = pathinfo(parse_url($downloadUrl, PHP_URL_PATH), PATHINFO_EXTENSION);
-            if (empty($extension)) {
-                $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                $mime = finfo_buffer($finfo, $contents);
-                finfo_close($finfo);
-                $extension = $this->getExtensionFromMime($mime) ?: 'jpg';
-            }
+            // COMPRESS USING INTERVENTION
+            $manager = new ImageManager(new Driver());
+            $image = $manager->read($contents);
 
-            // ====== DETERMINISTIC FILENAME ======
-            // Use MD5 hash of the original URL to always get same filename
+            // PDF के लिए 800px और JPEG में बदलें (65% quality)
+            $image->scale(800, 800);
+            $encoded = $image->toJpeg(65);
+            $contents = (string) $encoded; // compressed binary
+
+            // Always store as .jpg
             $hash = md5($imageInput);
-            $fileName = $hash . '.' . $extension;
+            $fileName = $hash . '.jpg';
             $storagePath = 'items/' . $fileName;
 
-            // Check if this image already exists for this item
             $existing = ItemImage::where('item_id', $itemId)
                 ->where('image', $storagePath)
                 ->first();
             if ($existing) {
-                // Already attached, skip
                 return;
             }
 
-            // Store only if not already stored physically
             if (!Storage::disk('public')->exists($storagePath)) {
                 Storage::disk('public')->put($storagePath, $contents);
             }
@@ -1344,18 +1026,13 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                 'item_id' => $itemId,
                 'image'   => $storagePath,
             ]);
-
         } catch (\Exception $e) {
             $errors[] = "Row {$rowNumber}: Error downloading image from {$imageInput} – " . $e->getMessage();
         }
     }
 
-    /**
-     * Convert Google Drive shareable link to direct download URL
-     */
     private function getGoogleDriveDirectUrl($url)
     {
-        // Match Google Drive file ID from various formats
         $patterns = [
             '/\/file\/d\/([^\/]+)/',
             '/\/open\?id=([^&]+)/',
@@ -1367,12 +1044,9 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                 return "https://drive.google.com/uc?export=download&id={$fileId}";
             }
         }
-        return $url; // return as is if not Google Drive
+        return $url;
     }
 
-    /**
-     * Helper to map mime type to extension
-     */
     private function getExtensionFromMime($mime)
     {
         $map = [
@@ -1384,37 +1058,28 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
         return $map[$mime] ?? null;
     }
 
-    /**
-     * Helper to attach an image to an item (copy from temp if needed)
-     */
     private function attachImageToItem($itemId, $imgName, &$errors, $rowNumber)
     {
         $found = false;
         $relativePath = null;
         $originalName = $imgName;
 
-        // First, check if this filename already exists in storage (with deterministic name)
         $hash = md5($originalName);
         $ext = pathinfo($originalName, PATHINFO_EXTENSION);
         if (empty($ext)) {
-            // If no extension, try to guess from file if exists
-            // For simplicity, we'll skip and treat as is
-            $ext = 'jpg'; // fallback
+            $ext = 'jpg';
         }
         $destFileName = $hash . '.' . $ext;
         $storageDest = 'items/' . $destFileName;
 
-        // Check if already attached to this item
         $existing = ItemImage::where('item_id', $itemId)
             ->where('image', $storageDest)
             ->first();
         if ($existing) {
-            return; // already exists
+            return;
         }
 
-        // Try to locate the source file
         if (Storage::disk('public')->exists('items/' . $originalName)) {
-            // If the file exists with original name, copy to deterministic name
             $contents = Storage::disk('public')->get('items/' . $originalName);
             Storage::disk('public')->put($storageDest, $contents);
             $relativePath = $storageDest;
@@ -1436,9 +1101,6 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
         }
     }
 
-    /**
-     * Show image uploader for CSV import
-     */
     public function showImageUploader()
     {
         $importDir = public_path('import_images/');
@@ -1448,10 +1110,9 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
 
         $files = File::files($importDir);
         $filenames = array_map(fn($file) => $file->getFilename(), $files);
-        
-         if (request()->filled('search')) {
-            $search = strtolower(request('search'));
 
+        if (request()->filled('search')) {
+            $search = strtolower(request('search'));
             $filenames = array_values(array_filter($filenames, function ($filename) use ($search) {
                 return str_contains(strtolower($filename), $search);
             }));
@@ -1475,16 +1136,17 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
     }
 
     /**
-     * Upload images to temporary folder (keeps original filename)
+     * UPDATED – Compress import images to 800px, 60% quality
      */
     public function uploadImportImages(Request $request)
     {
         $request->validate([
             'images' => 'required',
-            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:5120' // max 5MB per image
+            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:5120'
         ]);
 
         $importDir = public_path('import_images/');
+
         if (!File::exists($importDir)) {
             File::makeDirectory($importDir, 0755, true);
         }
@@ -1492,13 +1154,11 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
         $uploaded = [];
         $warnings = [];
 
+        $manager = new ImageManager(new Driver());
+
         foreach ($request->file('images') as $file) {
             $originalName = $file->getClientOriginalName();
-
-            // Remove any special characters from filename (but keep name)
             $cleanName = preg_replace('/[^a-zA-Z0-9._-]/', '', $originalName);
-
-            // Check if file with same name already exists
             $targetPath = $importDir . $cleanName;
 
             if (File::exists($targetPath)) {
@@ -1506,21 +1166,47 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
                 continue;
             }
 
-            $file->move($importDir, $cleanName);
-            $uploaded[] = $cleanName;
+            try {
+                if ($file->getSize() <= 100 * 1024) {
+                    $file->move($importDir, $cleanName);
+                } else {
+                    $extension = strtolower($file->getClientOriginalExtension());
+                    $image = $manager->read($file->getRealPath());
+                    $image->scale(800, 800);
+
+                    switch ($extension) {
+                        case 'jpg':
+                        case 'jpeg':
+                            $encoded = $image->toJpeg(60);
+                            break;
+                        case 'png':
+                            $encoded = $image->toPng();
+                            break;
+                        case 'webp':
+                            $encoded = $image->toWebp(60);
+                            break;
+                        default:
+                            $encoded = $image->encode();
+                    }
+                    $encoded->save($targetPath);
+                }
+                $uploaded[] = $cleanName;
+            } catch (\Exception $e) {
+                $file->move($importDir, $cleanName);
+                $uploaded[] = $cleanName;
+                $warnings[] = "Optimization failed for '{$cleanName}'. Original image saved.";
+                \Log::error('Import image optimization failed', [
+                    'file' => $cleanName,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
-        $message = count($uploaded) . ' images uploaded successfully.';
-        if (!empty($warnings)) {
-            return back()->with('success', $message)->with('warnings', $warnings);
-        }
-
-        return back()->with('success', $message);
+        return back()
+            ->with('success', count($uploaded) . ' images uploaded successfully.')
+            ->with('warnings', $warnings);
     }
 
-    /**
-     * Delete an image from temporary folder
-     */
     public function deleteImportImage($filename)
     {
         $filePath = public_path('import_images/' . $filename);
@@ -1538,15 +1224,12 @@ protected function processCsvFile($filePath, &$imported, &$updated, &$importErro
             return response()->json(['similar' => []]);
         }
 
-        // Find similar SKUs that are either:
-        // - existing SKU starts with given SKU (prefix), OR
-        // - given SKU starts with existing SKU (suffix), BUT exclude exact match
-        $similar = Item::where('sku', 'LIKE', $sku . '%')   // existing starts with input
-            ->orWhereRaw("? LIKE CONCAT(sku, '%')", [$sku]) // input starts with existing
+        $similar = Item::where('sku', 'LIKE', $sku . '%')
+            ->orWhereRaw("? LIKE CONCAT(sku, '%')", [$sku])
             ->pluck('sku')
             ->unique()
             ->filter(function ($existingSku) use ($sku) {
-                return $existingSku !== $sku; // exclude exact match
+                return $existingSku !== $sku;
             })
             ->values();
 
