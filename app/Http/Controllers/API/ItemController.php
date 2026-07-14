@@ -88,6 +88,11 @@ class ItemController extends Controller
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
         }
+       if ($request->filled('category_slug')) {
+            $query->whereHas('category', function ($q) use ($request) {
+                $q->where('slug', $request->category_slug);
+            });
+        }
 
         if ($request->get('type') === 'newly-launched') {
             $query->where('created_at', '>=', now()->subDays(30));
@@ -1019,12 +1024,12 @@ class ItemController extends Controller
                 ]);
 
                 /*
-            STOCK INCREASE → SKU BASED MATCH
+            STOCK INCREASE â†’ SKU BASED MATCH
             */
                 if ($newQty > $oldQty) {
 
                     $pendingUsers = DB::table('pending_order_items')
-                        ->where('item_sku', $item->sku) // 🔥 KEY CHANGE
+                        ->where('item_sku', $item->sku) // ðŸ”¥ KEY CHANGE
                         ->where('pending_qty', '>', 0)
                         ->pluck('user_id')
                         ->unique();
@@ -1183,7 +1188,7 @@ class ItemController extends Controller
 
     //             /*
     //         --------------------------------
-    //          STOCK INCREASED → NOTIFY USERS
+    //          STOCK INCREASED â†’ NOTIFY USERS
     //         --------------------------------
     //         */
     //             if ($newQty > $oldQty && $item->sku) {
@@ -1201,7 +1206,7 @@ class ItemController extends Controller
     //                     foreach ($users as $user) {
 
     //                         /*
-    //                     📧 MAIL
+    //                     ðŸ“§ MAIL
     //                     */
     //                         try {
     //                             Mail::raw(
@@ -1266,11 +1271,11 @@ class ItemController extends Controller
 
             $client = new \Twilio\Rest\Client($sid, $token);
 
-            $message = "🔔 *Item Back in Stock!*\n\n"
+            $message = "ðŸ”” *Item Back in Stock!*\n\n"
                 . "Hi {$userName},\n\n"
                 . "The item *{$itemName}* you requested is now available.\n\n"
                 . "You can place your order now before it goes out of stock again!\n\n"
-                . "👉 Visit our store now.";
+                . "ðŸ‘‰ Visit our store now.";
 
             $client->messages->create(
                 "whatsapp:+91{$phone}",
