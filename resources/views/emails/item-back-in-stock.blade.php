@@ -393,7 +393,7 @@
     <div class="email-wrapper">
         <!-- HEADER -->
         <div class="header">
-            <a href="https://www.markupdesigns.net/morovski-light-web/">
+            <a href="https://www.morovski.com/">
                 <img src="https://www.markupdesigns.net/morovski-light/logo/MORVOSKI-logo.png" alt="MOROVSKI" class="logo-img" />
             </a>
             <p class="tagline">Crafted Illumination</p>
@@ -424,7 +424,7 @@
                 <div class="alert-message">
                     is back in stock — just for you. Don't let it slip away again.
                 </div>
-                <a href="https://www.markupdesigns.net/morovski-light-web/shop" class="cta-btn">SHOP NOW →</a>
+                <a href="https://www.morovski.com/shop" class="cta-btn">SHOP NOW →</a>
                 <div class="stock-note">Limited quantity available — order soon</div>
             </div>
 
@@ -456,7 +456,7 @@
 
             <!-- SECONDARY CTA -->
             <div class="secondary-cta">
-                <a href="https://www.markupdesigns.net/morovski-light-web/">Explore All Collections →</a>
+                <a href="https://www.morovski.com/">Explore All Collections →</a>
             </div>
         </div>
 
@@ -464,15 +464,15 @@
         <div class="footer">
             <div class="footer-logo">MOROVSKI</div>
             <div class="footer-links">
-                <a href="https://www.markupdesigns.net/morovski-light-web/terms-and-condition">Terms &amp; Conditions</a>
-                <a href="https://www.markupdesigns.net/morovski-light-web/privacy-policy">Privacy Policy</a>
-                <a href="https://www.markupdesigns.net/morovski-light-web/cookies-policy">Cookies Policy</a>
+                <a href="https://www.morovski.com/terms-and-condition">Terms &amp; Conditions</a>
+                <a href="https://www.morovski.com/privacy-policy">Privacy Policy</a>
+                <a href="https://www.morovski.com/cookies-policy">Cookies Policy</a>
             </div>
             <div class="footer-separator"></div>
             <div class="footer-address">
                 MOROVSKI Lighting Co. &nbsp;·&nbsp; Studio &amp; Showroom<br />
                 You are receiving this because you requested a stock alert for this item.<br />
-                <a href="https://www.markupdesigns.net/morovski-light-web/">morovski-light-web.com</a>
+                <a href="https://www.morovski.com/">morovski-light-web.com</a>
             </div>
             <div class="footer-unsubscribe">
                 <a href="#">Unsubscribe</a> &nbsp;·&nbsp;

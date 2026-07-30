@@ -757,7 +757,7 @@
 
         <div class="footer-row">
             <div class="terms-block">
-                <a href="https://www.markupdesigns.net/morovski-light-web/privacy-policy/" class="terms-title">Terms
+                <a href="https://www.morovski.com/privacy-policy/" class="terms-title">Terms
                     &amp; Conditions</a>
                 <ol>
                     <li>Goods once sold are non-returnable and non-refundable only exchangable.</li>

@@ -1065,7 +1065,7 @@ class OrderController extends Controller
             DB::commit();
 
             // $frontendUrl = 'http://localhost:5173/morovski-light-web/order-confirmation/';
-            $frontendUrl = 'https://www.markupdesigns.net/morovski-light-web/order-confirmation/';
+            $frontendUrl = 'https://www.morovski.com/order-confirmation/';
 
             $queryParams = http_build_query([
                 'status' => true,

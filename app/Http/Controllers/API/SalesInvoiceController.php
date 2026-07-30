@@ -4215,12 +4215,12 @@ class SalesInvoiceController extends Controller
     //                 ->get();
 
     //             $itemLinks = $categoryItems->map(function ($item) {
-    //                 return 'https://www.markupdesigns.net/morovski-light-web/items/' . $item->slug;
+    //                 return 'https://www.morovski.com/items/' . $item->slug;
     //             })->values();
 
     //             $data[] = [
     //                 'category_id'   => $categoryId,
-    //                 'category_link' => 'https://www.markupdesigns.net/morovski-light-web/items?category_id=' . $categoryId,
+    //                 'category_link' => 'https://www.morovski.com/items?category_id=' . $categoryId,
     //                 'items'         => $itemLinks,
     //             ];
     //         }
@@ -4266,12 +4266,12 @@ class SalesInvoiceController extends Controller
                 $categoryItems = $itemsGrouped->get($categoryId, collect());
     
                 $itemLinks = $categoryItems->map(function ($item) {
-                    return 'https://www.markupdesigns.net/morovski-light-web/items/' . $item->slug;
+                    return 'https://www.morovski.com/items/' . $item->slug;
                 })->values();
     
                 $data[] = [
                     'category_id'   => $categoryId,
-                    'category_link' => 'https://www.markupdesigns.net/morovski-light-web/items?category_id=' . $categoryId,
+                    'category_link' => 'https://www.morovski.com/items?category_id=' . $categoryId,
                     'items'         => $itemLinks,
                 ];
             }
@@ -4365,7 +4365,7 @@ class SalesInvoiceController extends Controller
 
     //                 'slug' => $shareLink->slug,
 
-    //                 'link' => 'https://www.markupdesigns.net/morovski-light-web/items/' . $shareLink->slug,
+    //                 'link' => 'https://www.morovski.com/items/' . $shareLink->slug,
 
     //                 'items_count' => count($request->item_ids),
     //             ]
@@ -4444,7 +4444,7 @@ class SalesInvoiceController extends Controller
             */
 
             return redirect()->to(
-                'https://www.markupdesigns.net/morovski-light-web/products/' . $shareLink->slug
+                'https://www.morovski.com/products/' . $shareLink->slug
             );
         } catch (\Exception $e) {
 

@@ -425,7 +425,7 @@
     <div class="email-wrapper">
         <!-- HEADER (brand consistent) -->
         <div class="header">
-            <a href="https://www.markupdesigns.net/morovski-light-web/">
+            <a href="https://www.morovski.com/">
                 <img src="https://www.markupdesigns.net/morovski-light/logo/MORVOSKI-logo.png" alt="MOROVSKI" class="logo-img" />
             </a>
             <p class="tagline">Crafted Illumination</p>
@@ -474,7 +474,7 @@
                 </div>
                 
                 <div style="text-align: center;">
-                    <a href="https://www.markupdesigns.net/morovski-light-web/login" class="cta-btn">ACCESS MY ACCOUNT →</a>
+                    <a href="https://www.morovski.com/login" class="cta-btn">ACCESS MY ACCOUNT →</a>
                 </div>
             </div>
 
@@ -506,7 +506,7 @@
 
             <!-- SECONDARY CTA -->
             <div class="secondary-cta">
-                <a href="https://www.markupdesigns.net/morovski-light-web/">Explore Morovski.com →</a>
+                <a href="https://www.morovski.com/">Explore Morovski.com →</a>
             </div>
         </div>
 
@@ -514,15 +514,15 @@
         <!--<div class="footer">-->
         <!--    <div class="footer-logo">MOROVSKI</div>-->
         <!--    <div class="footer-links">-->
-        <!--        <a href="https://www.markupdesigns.net/morovski-light-web/terms-and-condition">Terms &amp; Conditions</a>-->
-        <!--        <a href="https://www.markupdesigns.net/morovski-light-web/privacy-policy">Privacy Policy</a>-->
-        <!--        <a href="https://www.markupdesigns.net/morovski-light-web/cookies-policy">Cookies Policy</a>-->
+        <!--        <a href="https://www.morovski.com/terms-and-condition">Terms &amp; Conditions</a>-->
+        <!--        <a href="https://www.morovski.com/privacy-policy">Privacy Policy</a>-->
+        <!--        <a href="https://www.morovski.com/cookies-policy">Cookies Policy</a>-->
         <!--    </div>-->
         <!--    <div class="footer-separator"></div>-->
         <!--    <div class="footer-address">-->
         <!--        MOROVSKI Lighting Co. &nbsp;·&nbsp; Studio &amp; Showroom<br />-->
         <!--        You are receiving this because your {{ strtolower($accountTypeLabel) }} was created at Morovski.<br />-->
-        <!--        <a href="https://www.markupdesigns.net/morovski-light-web/">morovski-light-web.com</a>-->
+        <!--        <a href="https://www.morovski.com/">morovski-light-web.com</a>-->
         <!--    </div>-->
            
         <!--</div>-->

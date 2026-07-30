@@ -28,7 +28,7 @@ return [
 
     'env' => env('APP_ENV', 'production'),
     
-    'frontend_url' => env('FRONTEND_URL', 'https://www.markupdesigns.net/morovski-light-web/'),
+    'frontend_url' => env('FRONTEND_URL', 'https://www.morovski.com/'),
 
     /*
     |--------------------------------------------------------------------------
@@ -56,7 +56,7 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
     
-    'frontend_url' => env('FRONTEND_URL', 'https://www.markupdesigns.net/morovski-light-web'),
+    'frontend_url' => env('FRONTEND_URL', 'https://www.morovski.com'),
 
     /*
     |--------------------------------------------------------------------------
