@@ -30,7 +30,7 @@ class ReportResolvedNotification extends Notification
             ->line('A report on your content has been reviewed.')
             ->line('Status: ' . ucfirst(str_replace('_', ' ', $this->report->status)))
             ->line('Admin Notes: ' . ($this->report->resolution_notes ?? 'N/A'))
-            ->action('View Details', 'https://www.markupdesigns.net/sport-gems-web/account-layout/notifications')
+            ->action('View Details', 'https://www.app.morovski.com/account-layout/notifications')
             ->line('If you have questions, please contact support.');
     }
 

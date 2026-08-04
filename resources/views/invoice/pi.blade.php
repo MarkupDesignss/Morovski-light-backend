@@ -255,7 +255,7 @@
         <div class="invoice-inner">
             <!-- Logo at the top MIDDLE -->
             <div class="logo-area">
-                <img class="logo-image" src="https://www.markupdesigns.net/morovski-light/logo/MORVOSKI-logo.png"
+                <img class="logo-image" src="https://www.app.morovski.com/logo/MORVOSKI-logo.png"
                     alt="Morovski brand logo"
                     onerror="this.onerror=null; this.style.opacity='0.6'; this.alt='Logo unavailable';">
             </div>

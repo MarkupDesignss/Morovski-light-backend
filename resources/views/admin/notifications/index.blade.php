@@ -301,7 +301,7 @@
         }
 
         function markAsUnread(notificationId) {
-            const url = `https://www.markupdesigns.net/morovski-light/admin/notifications/${notificationId}/unread`;
+            const url = `https://www.app.morovski.com/admin/notifications/${notificationId}/unread`;
                 console.log(url)
             fetch(url, {
                     method: 'POST',

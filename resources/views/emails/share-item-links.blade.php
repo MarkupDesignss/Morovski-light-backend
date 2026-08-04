@@ -321,7 +321,7 @@
         <!-- HEADER -->
         <div class="header">
             <a href="https://www.morovski.com/">
-                <img src="https://www.markupdesigns.net/morovski-light/logo/MORVOSKI-logo.png" alt="MOROVSKI" class="logo-img" />
+                <img src="https://www.app.morovski.com/logo/MORVOSKI-logo.png" alt="MOROVSKI" class="logo-img" />
             </a>
             <p class="tagline">Crafted Illumination</p>
         </div>
